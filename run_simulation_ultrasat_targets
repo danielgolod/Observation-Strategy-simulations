@@ -1,0 +1,103 @@
+
+import pandas as pd
+from astropy.time import Time
+from astropy import units as u
+import numpy as np
+
+# Import from your new organized folders!
+from core.config.settings import setup_libraries
+from core.targets.simulation_targets import Targets_ULTRASAT, Target_ULTRASAT_Wrapped
+from astroplan import FixedTarget
+# (Make sure 'Target' is completely deleted from the astroplan import!)
+from core.observatories.observatory import Observatory
+from astropy.coordinates import SkyCoord
+
+
+# 1. Run global setups
+
+setup_libraries()
+
+# 2. Initialize Observatories
+
+# MAST/DeepSpec
+mast = Observatory.from_custom_location(
+    name="MAST", lon_str="35d02m00s", lat_str="+30d03m00s", elevation_m=400, tz_str="Asia/Jerusalem"
+)
+
+# NTT/SOXS
+soxs = Observatory.from_custom_location(
+    name="SOXS", lon_str="-70d44m00s", lat_str="-29d15m00s", elevation_m=2400, tz_str="America/Santiago"
+)
+
+# LDT/WILDS
+wilds = Observatory.from_custom_location(
+    name="WILDS", lon_str="-111d44m25s", lat_str="+34d44m40s", elevation_m=2360, tz_str="America/Phoenix"
+)
+
+
+#Global Parameters
+future_time_window = 0 # in hours, for the future visibility check
+observation_window_days = 2 # in days, for the continuous window calculation
+
+
+# --- 1. Load the original DataFrame ---
+print("Loading real ULTRASAT targets...")
+ultrasat_manager = Targets_ULTRASAT(r"\\wsl.localhost\Ubuntu\home\golod\Ultrasat-Skysurvey\ultrasat_targets_1year.csv")
+df_targets = ultrasat_manager.get_dataframe()
+
+# --- 2. Prepare empty lists to hold the True/False answers AND Windows ---
+mast_vis_list, mast_future_list, mast_windows_list = [], [], []
+soxs_vis_list, soxs_future_list, soxs_windows_list = [], [], []
+wilds_vis_list, wilds_future_list, wilds_windows_list = [], [], []
+
+print(f"Running visibility checks and 48-hour window calculations for {len(df_targets)} targets...")
+
+# --- 3. Loop through the rows to run the checks ---
+for index, row in df_targets.iterrows():
+    # Build coordinates and target
+    coord = SkyCoord(ra=row['RA (deg)'] * u.deg, dec=row['Dec (deg)'] * u.deg)
+    fixed_targ = FixedTarget(coord=coord, name=str(row['Target_ID']))
+    
+    # Put it in your cleanly named box!
+    targ = Target_ULTRASAT_Wrapped(fixed_targ)
+    t = Time(row['Peak_Time_MJD'], format='mjd')
+    
+    # --- MAST Checks ---
+    mast_vis_list.append(mast.can_see(targ, t))
+    mast_future_list.append(mast.can_see_in_future(targ, t, future_time_window=future_time_window))
+    mast_windows_list.append(mast.get_observation_windows(targ, t, window_days=observation_window_days))
+    
+    # --- SOXS Checks ---
+    soxs_vis_list.append(soxs.can_see(targ, t))
+    soxs_future_list.append(soxs.can_see_in_future(targ, t, future_time_window=future_time_window))
+    soxs_windows_list.append(soxs.get_observation_windows(targ, t, window_days=observation_window_days))
+    
+    # --- WILDS Checks ---
+    wilds_vis_list.append(wilds.can_see(targ, t))
+    wilds_future_list.append(wilds.can_see_in_future(targ, t, future_time_window=future_time_window))
+    wilds_windows_list.append(wilds.get_observation_windows(targ, t, window_days=observation_window_days))
+
+# --- 4. Slap the new columns directly onto the DataFrame ---
+# Boolean columns
+df_targets['MAST_Visible_Now'] = mast_vis_list
+df_targets['MAST_Visible_Future'] = mast_future_list
+df_targets['SOXS_Visible_Now'] = soxs_vis_list
+df_targets['SOXS_Visible_Future'] = soxs_future_list
+df_targets['WILDS_Visible_Now'] = wilds_vis_list
+df_targets['WILDS_Visible_Future'] = wilds_future_list
+
+# Window columns (48 hours)
+df_targets['MAST_Obs_Windows_48h'] = mast_windows_list
+df_targets['SOXS_Obs_Windows_48h'] = soxs_windows_list
+df_targets['WILDS_Obs_Windows_48h'] = wilds_windows_list
+
+print("✅ Simulation complete! DataFrame updated.")
+
+# Preview the final DataFrame
+print(df_targets[['Target_ID', 'MAST_Obs_Windows_48h', 'SOXS_Obs_Windows_48h', 'WILDS_Obs_Windows_48h']].head())
+
+# --- 5. Save the final results to a CSV file ---
+output_filename = "ultrasat_visibility_results.csv"
+df_targets.to_csv(output_filename, index=False)
+
+print(f"Data successfully saved to: {output_filename}")
