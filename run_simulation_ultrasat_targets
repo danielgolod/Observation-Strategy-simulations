@@ -42,8 +42,10 @@ observation_window_days = 2 # in days, for the continuous window calculation
 
 # --- 1. Load the original DataFrame ---
 print("Loading real ULTRASAT targets...")
+#change the csv path for your system
 ultrasat_manager = Targets_ULTRASAT(r"\\wsl.localhost\Ubuntu\home\golod\Ultrasat-Skysurvey\ultrasat_targets_1year.csv")
 df_targets = ultrasat_manager.get_dataframe()
+original_df=pd.read_csv(r"\\wsl.localhost\Ubuntu\home\golod\Ultrasat-Skysurvey\ultrasat_targets_1year.csv")
 
 # --- 2. Prepare empty lists to hold the True/False answers AND Windows ---
 mast_vis_list, mast_future_list, mast_windows_list = [], [], []
