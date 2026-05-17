@@ -1,0 +1,1 @@
+\\wsl.localhost\Ubuntu\home\golod\Ultrasat-Skysurvey\ultrasat_wide_multiband_1year.csv
