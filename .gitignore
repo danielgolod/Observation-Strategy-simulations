@@ -15,14 +15,15 @@ data/raw_data_saved.csv
 data/staralt_gifs/
 raw_data_saved.csv
 
+# Raw input data is committed — do NOT ignore it
+!data/ultrasat_wide_multiband_1year.csv
+
 # Test data outputs
 Tests/data/
 
 # Claude Code memory (private)
 .claude/
 
-# Input path (user-local, contains machine-specific paths)
-input_path.txt
 
 # IDE
 .vscode/
