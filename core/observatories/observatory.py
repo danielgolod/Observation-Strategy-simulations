@@ -1,5 +1,4 @@
 
-from calendar import month
 from datetime import datetime
 from pytz import timezone
 
@@ -261,65 +260,100 @@ class ObservationCampaign:
                 df_obs['Observatory'] = obs.name  # Add the current observatory name 
                 
                 # 1. MAGNITUDE FILTER
-                mask_mag = df_obs['Mag_Visual'].values <= obs.limiting_mag # Create a boolean mask where True indicates that the visual magnitude at that time step is less than or equal to the observatory's limiting magnitude
-                times_mag = time_grid[mask_mag] # take only the times where the magnitude condition is satisfied 
+                mask_mag = df_obs['Mag_Visual'].values <= obs.limiting_mag 
+                times_mag = time_grid[mask_mag] 
                 
-                mask_mag_sun = np.zeros(len(time_grid), dtype=bool)
-                mask_mag_sun_airmass = np.zeros(len(time_grid), dtype=bool)
-                mask_mag_sun_airmass_moon = np.zeros(len(time_grid), dtype=bool)
+                # Setup our decoupled masks
+                mask_telemetry = np.zeros(len(time_grid), dtype=bool)
+                mask_strict_sun = np.zeros(len(time_grid), dtype=bool)
+                mask_airmass = np.zeros(len(time_grid), dtype=bool)
+                mask_final = np.zeros(len(time_grid), dtype=bool)
                 
-                # 2. SUN FILTER: we apply  the sun filter but only to points that passed the magnitude filter (for saving computational time)
-                if len(times_mag) > 0:
-                    sun_valid_subset = obs.observer.is_night(times_mag, horizon=obs.sun_horizon) # checks if sun is below the specified horizon angle
-                    mask_mag_sun[mask_mag] = sun_valid_subset 
-                    
-                times_mag_sun = time_grid[mask_mag_sun]
-                
-                # 3. AIRMASS FILTER: check if the target is above the airmass horizon at the times that passed both the magnitude and sun filters
-                if len(times_mag_sun) > 0:
-                    airmass_valid_subset = obs.observer.target_is_up(times_mag_sun, astro_target, horizon=obs.airmass_horizon)
-                    mask_mag_sun_airmass[mask_mag_sun] = airmass_valid_subset
-                    
-                times_mag_sun_airmass = time_grid[mask_mag_sun_airmass]
-                
-                # 4. MOON FILTER
-                if len(times_mag_sun_airmass) > 0:
-                    astropy_times_moon = Time(times_mag_sun_airmass, format='mjd')
+                telemetry_dict = {}
 
-                    moon_coords = coord.get_body('moon', astropy_times_moon, location=obs.observer.location) # gets the moon coordinates at the given times
-                    moon_sep = astro_target.coord.separation(moon_coords) # checks the separation between the target and the moon
-                    moon_illum = obs.observer.moon_illumination(astropy_times_moon) # checks the moon illumination fraction
-                    moon_altaz = obs.observer.moon_altaz(astropy_times_moon) # checks the moon altitude
+                # 2. BROAD SUN FILTER (For Plotting: Sunset to Sunrise)
+                if len(times_mag) > 0:
+                    # horizon=0*u.deg keeps the telemetry running during twilight!
+                    telemetry_subset = obs.observer.is_night(times_mag, horizon=0*u.deg)
+                    mask_telemetry[mask_mag] = telemetry_subset
                     
-                    moon_is_down = moon_altaz.alt < 0 * u.deg # if the moon is below the horizon, it's automatically safe
-                    distance_scale = obs.moon_max_dist - obs.moon_base_dist 
-                    dynamic_safe_dist = (obs.moon_base_dist + (distance_scale * moon_illum)) * u.deg 
-                    moon_is_safe_dist = moon_sep > dynamic_safe_dist 
+                times_telemetry = time_grid[mask_telemetry]
+
+                # 3. CALCULATE FULL-NIGHT TELEMETRY
+                if len(times_telemetry) > 0:
+                    target_altaz = obs.observer.altaz(times_telemetry, astro_target)
+                    moon_altaz = obs.observer.moon_altaz(times_telemetry)
+                    sun_altaz = obs.observer.sun_altaz(times_telemetry) # <-- NEW: Capture Sun!
                     
-                    mask_mag_sun_airmass_moon[mask_mag_sun_airmass] = moon_is_down | moon_is_safe_dist # the moon filter is passed if either the moon is down or it's far enough away based on its current phase
+                    telemetry_dict = {
+                        'Time_MJD': times_telemetry.mjd.tolist(),
+                        'Target_Elevation': target_altaz.alt.deg.tolist(),
+                        'Moon_Separation': moon_altaz.separation(target_altaz).deg.tolist(),
+                        'Moon_Elevation': moon_altaz.alt.deg.tolist(),
+                        'Sun_Elevation': sun_altaz.alt.deg.tolist() # <-- NEW: Save to dictionary!
+                    }
+
+                    # 4. STRICT FILTERS FOR ACTUAL OBSERVATION WINDOWS
+                    # A. Strict Astronomical Twilight
+                    strict_sun_subset = obs.observer.is_night(times_telemetry, horizon=obs.sun_horizon)
+                    mask_strict_sun[mask_telemetry] = strict_sun_subset
+                    
+                    # B. Airmass Limit
+                    airmass_subset = obs.observer.target_is_up(times_telemetry, astro_target, horizon=obs.airmass_horizon)
+                    mask_airmass[mask_telemetry] = airmass_subset
+                    
+                    # Combine strict filters to prevent shape mismatches
+                    mask_combined = mask_strict_sun & mask_airmass
+                    times_combined = time_grid[mask_combined]
+                    
+                    # C. Moon Separation & Illumination
+                    if len(times_combined) > 0:
+                        astropy_times_combined = Time(times_combined, format='mjd')
+                        
+                        target_altaz_subset = obs.observer.altaz(astropy_times_combined, astro_target)
+                        moon_altaz_subset = obs.observer.moon_altaz(astropy_times_combined)
+                        
+                        moon_sep = moon_altaz_subset.separation(target_altaz_subset)
+                        moon_illum = obs.observer.moon_illumination(astropy_times_combined)
+                        moon_is_down = moon_altaz_subset.alt < 0 * u.deg
+                        
+                        distance_scale = obs.moon_max_dist - obs.moon_base_dist
+                        dynamic_safe_dist = (obs.moon_base_dist + (distance_scale * moon_illum)) * u.deg
+                        moon_is_safe_dist = moon_sep > dynamic_safe_dist
+                        
+                        # Only times that pass Sun, Airmass, AND Moon make it into the final windows
+                        mask_final[mask_combined] = moon_is_down | moon_is_safe_dist
 
                 target_summary = {
                     'Target_ID': target_id,
-                    'Observatory': obs.name
+                    'Observatory': obs.name,
+                    'Telemetry': telemetry_dict 
                 }
                 
-                # 1 through 4: Extract all windows regardless of how short they are
+                # --- FUNNEL LEVELS 1-3: Restore intermediate steps for the Plotly Dashboard ---
                 target_summary['Windows_Mag_Only'] = self.extract_windows(df_obs, mask_mag)
-                target_summary['Windows_Mag_Sun'] = self.extract_windows(df_obs, mask_mag_sun)
-                target_summary['Windows_Mag_Sun_Airmass'] = self.extract_windows(df_obs, mask_mag_sun_airmass)
-                target_summary['mask_mag_sun_airmass_moon'] = self.extract_windows(df_obs, mask_mag_sun_airmass_moon)
+                target_summary['Windows_Mag_Sun'] = self.extract_windows(df_obs, mask_strict_sun)
+                target_summary['Windows_Mag_Sun_Airmass'] = self.extract_windows(df_obs, mask_combined)
 
-                # 5. Observational window duration filter:
-                min_req_mins = obs.min_obs_window * 60 # convert the minimum required observation window from hours to minutes
+                # --- FUNNEL LEVEL 4: Moon Filtered ---
+                target_summary['mask_mag_sun_airmass_moon'] = self.extract_windows(df_obs, mask_final)
+
+                # --- FUNNEL LEVEL 5: Duration Filtered ---
+                min_req_mins = obs.min_obs_window * 60 
                 
                 duration_filtered_windows = [
                     (start, end, mag) for (start, end, mag) in target_summary['mask_mag_sun_airmass_moon'] 
                     if (end - start) * 24 * 60 >= min_req_mins
                 ]
-                
                 target_summary['mask_mag_sun_airmass_moon_duration'] = duration_filtered_windows
-
                 
+                # --- FUNNEL LEVEL 6: Weather Filter (Simulated) ---
+                # Placeholder: apply_weather_simulation() fills this column using the
+                # observatory-wide clear-night calendar, which is the correct approach.
+                # A per-window dice roll here would be wrong because windows on the same
+                # night would roll independently, and the result gets overwritten anyway.
+                target_summary['Windows_Final_Weather_Simulated'] = duration_filtered_windows
+
                 target_obs_list.append(target_summary)
 
             # Once the inner observatory loop finishes, add these summaries to the master list
@@ -328,7 +362,6 @@ class ObservationCampaign:
         print("💾 Compiling Master Windows Database...")
         df_master_windows = pd.DataFrame(all_timelines)  
 
-        
         return df_master_windows
     
     def apply_weather_simulation(self, df_master, global_start_mjd, global_end_mjd):
@@ -356,24 +389,16 @@ class ObservationCampaign:
                 
                 for t_win in target_windows:
                     t_start, t_end, t_mag = t_win
-                    t_mid = (t_start + t_end) / 2.0
-                    
-                    # --- THE CENTER-OF-GRAVITY FIX ---
-                    # Find the clear Astropy night that is numerically closest to this target
-                    min_dist = 9999.0
-                    
-                    for n_start, n_end in clear_night_windows:
-                        n_mid = (n_start + n_end) / 2.0
-                        dist = abs(n_mid - t_mid)
-                        
-                        if dist < min_dist:
-                            min_dist = dist
-                            
-                    # Nights are separated by ~24 hours (1.0 days). 
-                    # If the nearest clear night is within 12 hours (0.5 days), it's a guaranteed match!
-                    if min_dist <= 0.5:
+
+                    # A target window survives only if it actually overlaps with a clear night.
+                    # Overlap condition: night starts before window ends AND night ends after window starts.
+                    is_covered = any(
+                        n_start <= t_end and n_end >= t_start
+                        for n_start, n_end in clear_night_windows
+                    )
+
+                    if is_covered:
                         surviving_target_windows.append(t_win)
-                    # ---------------------------------
                         
                 # Overwrite the dataframe cell with the surviving windows
                 df_master.at[idx, new_column] = surviving_target_windows

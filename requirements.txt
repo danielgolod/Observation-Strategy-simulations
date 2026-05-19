@@ -1,3 +1,9 @@
+numpy
 pandas
+matplotlib
 plotly
 ipympl
+tqdm
+pytz
+astropy
+astroplan

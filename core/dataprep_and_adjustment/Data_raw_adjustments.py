@@ -1,4 +1,3 @@
-import IPython
 import pandas as pd
 import numpy as np
 import math
@@ -185,7 +184,7 @@ class LightCurvePlotting:
         
         times, final_format = self._convert_time(times, time_format, peak_time)
         
-        fig, ax = plt.subplots(figsize=(10, 5))
+        _, ax = plt.subplots(figsize=(10, 5))
         ax.scatter(times, mags, color=color, marker='o', s=20, label=f'{band} Data')
         ax.plot(times, mags, color=color, linestyle='-', alpha=0.4)
         
@@ -203,7 +202,7 @@ class LightCurvePlotting:
             print("Note: Relative time plotting is disabled for multiband curves. Defaulting to MJD.")
             time_format = "MJD"
             
-        fig, ax = plt.subplots(figsize=(10, 6))
+        _, ax = plt.subplots(figsize=(10, 6))
         
         bands = [("ULTRASAT", 'purple', 'o', 'Peak_Time_MJD_ULTRASAT'), 
                  ("Visual", 'green', 'X', 'Peak_Time_MJD_Visual')]
@@ -320,7 +319,7 @@ class DatasetStatistics:
 
     def plot_summary_dashboard(self, mag_limit=18.0, limit_band="Visual"):
         """Generates the full 4x2 dashboard including the Sensitivity Curve."""
-        fig, axes = plt.subplots(4, 2, figsize=(12, 20))
+        _, axes = plt.subplots(4, 2, figsize=(12, 20))
         axes = axes.flatten()
 
         # 1. Sky Map
@@ -385,7 +384,7 @@ def wrap_targets_and_times_for_astroplan(df): # This function takes a DataFrame 
         return FixedTarget(coord=coords, name=row['Target_ID']) # Create and return an Astroplan FixedTarget object using the SkyCoord we just created and the Target_ID from the row as the name. This object can be used directly with Astroplan's scheduling and visibility functions, allowing for seamless integration into observation planning workflows.
 
     # Apply the function to create a Series of pure FixedTarget objects
-    astroplan_objects = df.apply(build_astroplan_target, axis=1) # Apply the build_astroplan_target function to each row of the DataFrame using the apply method. This generates a new Series where each entry is a FixedTarget object corresponding to the target described in that row of the DataFrame. The resulting Series will have the same index as the original DataFrame, allowing us to easily merge it back in as a new column.
+    astroplan_objects = df_modified.apply(build_astroplan_target, axis=1)
 
     # --- C. Clean Column Insertion ---
     if 'Dec (deg)' in df_modified.columns:

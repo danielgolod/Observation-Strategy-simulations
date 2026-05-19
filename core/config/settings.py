@@ -1,15 +1,18 @@
 import warnings
+import numpy as np
 import astropy.units as u
-from astroplan import download_IERS_A
 from core.observatories.observatory import Observatory
 
 # ==========================================
 # 1. Environment Setup
 # ==========================================
+RANDOM_SEED = 42
+
 def setup_libraries():
     """Downloads necessary astronomical tables and suppresses annoying warnings."""
     warnings.filterwarnings('ignore', category=Warning)
-    # download_IERS_A() # Uncomment this if astropy ever complains about missing time data
+    np.random.seed(RANDOM_SEED)
+    # from astroplan import download_IERS_A; download_IERS_A()  # uncomment if astropy complains about missing time data
     print("Libraries configured and ready.")
 
 

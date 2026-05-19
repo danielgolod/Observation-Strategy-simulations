@@ -1,18 +1,14 @@
-from core.CampaignStrategy import combine_target_windows, plot_advanced_funnel, plot_comprehensive_efficiency, plot_delay_distribution, plot_scheduling_dashboard, sort_combined_by_trigger_time, simulate_telescope_scheduling_fast
-from core.observatories.observatory import Observatory
-from core.dataprep_and_adjustment.Data_raw_adjustments import add_peak_and_first_observation_data
-from core.dataprep_and_adjustment.Data_raw_adjustments import load_raw_data
-import pandas as pd
-import random
-from core.dataprep_and_adjustment.Data_raw_adjustments import LightCurvePlotting
-from core.dataprep_and_adjustment.Data_raw_adjustments import DatasetStatistics
-from core.dataprep_and_adjustment.Data_raw_adjustments import wrap_targets_and_times_for_astroplan
-from core.observatories.observatory import Observatory
-from core.observatories.observatory import ObservationCampaign
-from datetime import datetime
-from core.config.settings import setup_libraries, ALL_TELESCOPES, MAST, SOXS, WILDS
 import os
+import pandas as pd
+from core.config.settings import setup_libraries, ALL_TELESCOPES
+from core.observatories.observatory import ObservationCampaign
 from core.observatories.windows_visualization import ScheduleVisualizer
+from core.dataprep_and_adjustment.Data_raw_adjustments import load_raw_data, add_peak_and_first_observation_data
+from core.CampaignStrategy import (
+    combine_target_windows, sort_combined_by_trigger_time,
+    simulate_telescope_scheduling_fast, plot_delay_distribution,
+    plot_comprehensive_efficiency, plot_scheduling_dashboard, plot_advanced_funnel
+)
 
 def main():
     # Setup warnings and libraries
@@ -98,7 +94,7 @@ def main():
         # Find simulation boundaries dynamically from the time columns
         time_cols = [c for c in df_enriched.columns if str(c).startswith('Detection_Time_MJD_')]
         global_start = df_enriched[time_cols].min().min() - 10
-        global_end = df_enriched[time_cols].max().max() + 100
+        global_end = df_enriched[time_cols].max().max() + 30
 
         print("\n☁️ Applying Monte Carlo weather patterns...")
         df_master_windows = campaign.apply_weather_simulation(
@@ -121,7 +117,7 @@ def main():
     df_grouped = combine_target_windows(df_master_windows)
     df_sorted = sort_combined_by_trigger_time(df_grouped, df_enriched)
 
-    master_calendars, scheduled_lists = simulate_telescope_scheduling_fast(df_sorted)
+    _, scheduled_lists = simulate_telescope_scheduling_fast(df_sorted)
 
     plot_delay_distribution(scheduled_lists,  'Windows_Mag_Sun')
     plot_comprehensive_efficiency(scheduled_lists, 'Windows_Final_Weather_Simulated')

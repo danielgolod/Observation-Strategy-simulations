@@ -1,10 +1,7 @@
 import pandas as pd
 import plotly.express as px
-from astropy.time import Time
 import plotly.graph_objects as go
 from astropy.time import Time
-import plotly.graph_objects as go
-import numpy as np
 
 
 def combine_target_windows(df_master):
@@ -88,7 +85,7 @@ def simulate_telescope_scheduling_fast(df_sorted):
         
         telescope_calendars = {}
 
-        for current_idx, row in df_sorted.iterrows():
+        for _, row in df_sorted.iterrows():
             target_id = row['Target_ID']
             trigger_time = row['First_Observation_Time_MJD']
             windows = row[col]
@@ -100,7 +97,7 @@ def simulate_telescope_scheduling_fast(df_sorted):
             windows = sorted(windows, key=lambda x: x[0])
             
             for fw in windows:
-                w_start, w_end, w_mag, obs = fw[0], fw[1], fw[2], fw[3]
+                w_start, w_end, _, obs = fw[0], fw[1], fw[2], fw[3]
                 
                 if obs not in telescope_calendars:
                     telescope_calendars[obs] = []
@@ -110,7 +107,7 @@ def simulate_telescope_scheduling_fast(df_sorted):
                 candidate_start = w_start
                 
                 # IMPORTANT: Unpacking 4 items here since you are saving 4 items below!
-                for b_start, b_end, b_target, b_trigger in booked_slots:
+                for b_start, b_end, _, _ in booked_slots:
                     # Does our 1-hour slot safely fit BEFORE the higher-priority booking?
                     if candidate_start + duration <= b_start:
                         break
