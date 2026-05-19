@@ -7,3 +7,6 @@ tqdm
 pytz
 astropy
 astroplan
+nbformat>=4.2.0
+requests
+ipywidgets

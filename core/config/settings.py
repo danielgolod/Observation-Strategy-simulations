@@ -1,18 +1,16 @@
 import warnings
 import numpy as np
 import astropy.units as u
+from astropy.utils import iers
 from core.observatories.observatory import Observatory
 
 # ==========================================
 # 1. Environment Setup
 # ==========================================
-RANDOM_SEED = 42
-
 def setup_libraries():
     """Downloads necessary astronomical tables and suppresses annoying warnings."""
     warnings.filterwarnings('ignore', category=Warning)
-    np.random.seed(RANDOM_SEED)
-    # from astroplan import download_IERS_A; download_IERS_A()  # uncomment if astropy complains about missing time data
+    iers.conf.auto_download = False  # use bundled IERS data, avoids per-calculation internet timeouts
     print("Libraries configured and ready.")
 
 
