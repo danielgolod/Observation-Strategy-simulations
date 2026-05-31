@@ -4,17 +4,6 @@ A simulation framework for optimizing spectroscopic follow-up of ULTRASAT supern
 
 ---
 
-## Science Context
-
-ULTRASAT detects candidate supernovae in UV. For spectroscopic classification and characterization, alerts are forwarded to a network of ground-based spectrographs. This simulation answers: **given a year of detections, how quickly can the network take a spectrum of each one?**
-
-The pipeline applies a 6-level observability funnel per target per telescope:
-
-```
-Brightness limit → Sun above horizon → Airmass limit → Moon separation → Minimum window duration → Weather
-```
-
-A greedy priority scheduler then books the earliest available 1-hour slot for each target, sorted by discovery time.
 
 ---
 
@@ -77,12 +66,7 @@ If astropy warns about missing IERS data on first run, uncomment the download li
 
 ## How to Run
 
-### 1. Set your input data path
 
-Open `input_path.txt` and paste the full path to your input CSV file:
-```
-/path/to/ultrasat_wide_multiband_1year.csv
-```
 
 The CSV must contain ULTRASAT and Visual V-band light curves in wide format, with columns:
 - `Target_ID`, `RA (deg)`, `Dec (deg)`
@@ -90,7 +74,7 @@ The CSV must contain ULTRASAT and Visual V-band light curves in wide format, wit
 - `ULTRASAT_Magnitude_0`, `ULTRASAT_Magnitude_1`, ...
 - `Visual_V_Magnitude_0`, `Visual_V_Magnitude_1`, ...
 
-### 2. Run the full pipeline
+###  Run the full pipeline
 
 ```bash
 python mainscript.py
